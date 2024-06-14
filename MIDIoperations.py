@@ -13,6 +13,8 @@ import music21
 import copy
 # Ipython.display to show audio files
 import IPython.display as ipd
+# To convert MIDI to wav
+import pretty_midi
 
 
 class MidiWav:
@@ -26,7 +28,21 @@ class MidiWav:
             raise FileNotFoundError(f"No file found at specified path: {file_path}")
 
     def convert_to_wav(self, audio_path):
-        os.system(f"fluidsynth -ni font.sf2 {self.midi_path} -F {audio_path} -r 44100 >& /dev/null")
+        # Load the MIDI file
+        midi_data = pretty_midi.PrettyMidi(self.midi_path)
+
+        # Create a synth object
+        fs = 44100  # Sample rate
+        synth = pretty_midi.fluidsynth(fs=fs)
+
+        # Synthesize the MIDI data to create an audio signal
+        audio_signal = synth.synthesize(midi_data)
+
+        # Save the audio signal as a WAV file
+        with open(audio_path, 'wb') as f:
+            f.write(audio_signal.encoded_audio())
+
+        # Use this line instead if inside a colab notebook
         # !fluidsynth -ni font.sf2 "$self.midi_path" -F "$audio_path" -r 44100 >& /dev/null
         self.wav_path = audio_path
 
