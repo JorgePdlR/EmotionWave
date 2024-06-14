@@ -15,7 +15,7 @@ import copy
 import IPython.display as ipd
 # To convert MIDI to wav
 import pretty_midi
-
+from midi2audio import FluidSynth
 
 class MidiWav:
     def __init__(self, file_path):
@@ -27,23 +27,18 @@ class MidiWav:
         else:
             raise FileNotFoundError(f"No file found at specified path: {file_path}")
 
-    def convert_to_wav(self, audio_path):
+    def convert_to_wav(self, audio_path, sound_font='default.sf2'):
         # Load the MIDI file
-        midi_data = pretty_midi.PrettyMidi(self.midi_path)
+        midi_data = pretty_midi.PrettyMIDI(self.midi_path)
 
-        # Create a synth object
-        fs = 44100  # Sample rate
-        synth = pretty_midi.fluidsynth(fs=fs)
+        # Save MIDI data to a temporary MIDI file
+        temp_midi_path = 'temp_output.mid'
+        midi_data.write(temp_midi_path)
 
-        # Synthesize the MIDI data to create an audio signal
-        audio_signal = synth.synthesize(midi_data)
+        # Use FluidSynth to convert the MIDI file to WAV using the specified sound font
+        fs = FluidSynth(sound_font)
+        fs.midi_to_audio(temp_midi_path, audio_path)
 
-        # Save the audio signal as a WAV file
-        with open(audio_path, 'wb') as f:
-            f.write(audio_signal.encoded_audio())
-
-        # Use this line instead if inside a colab notebook
-        # !fluidsynth -ni font.sf2 "$self.midi_path" -F "$audio_path" -r 44100 >& /dev/null
         self.wav_path = audio_path
 
     def reproduce_audio(self):
