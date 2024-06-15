@@ -244,7 +244,7 @@ class MidiWav:
                 # Insert to guarantee part is added at offset 0
                 truncated_score.insert(truncated_part)
 
-        # If there is no measure in this score, exit. Otherwise continue, create
+        # If there is no measure in this score, exit. Otherwise, continue to create
         # midi and store it
         there_is_a_part = False
         for part in truncated_score.parts:
@@ -357,7 +357,7 @@ class REMItokenizer():
         # assumptions are not True.
         if (total_tracks > 2 or total_tracks == 0) and not any_num_of_tracks:
             print(f"Number of tracks is more than 2!: {len(song_in_bars)}")
-            return None
+            return None, None
 
         # Ignore songs with more than 2 tracks if any_num_of_tracks is False
         if not any_num_of_tracks:
@@ -400,24 +400,26 @@ class REMItokenizer():
             _, divided_song = self.split_in_groups_of_bars(tokenized_song, num_of_bars=num_of_bars,
                                                            any_num_of_tracks=any_num_of_tracks)
 
-            # Go through all fragments and store them
-            for fragment_id, fragment in enumerate(divided_song):
-                # Create name for the fragment
-                # Extract file name
-                file_name = os.path.basename(current.midi_path)
-                # Save the new MIDI file
-                truncated_midi_name = f"{file_name[:-4]}_{fragment_id}.mid"
-                truncated_midi_path = dir_path + truncated_midi_name
+            # Advance just if we have a divided song
+            if divided_song is not None:
+                # Go through all fragments and store them
+                for fragment_id, fragment in enumerate(divided_song):
+                    # Create name for the fragment
+                    # Extract file name
+                    file_name = os.path.basename(current.midi_path)
+                    # Save the new MIDI file
+                    truncated_midi_name = f"{file_name[:-4]}_{fragment_id}.mid"
+                    truncated_midi_path = dir_path + truncated_midi_name
 
-                # Convert tokens to midi and store it
-                self.tokens_to_midi(truncated_midi_path, fragment)
+                    # Convert tokens to midi and store it
+                    self.tokens_to_midi(truncated_midi_path, fragment)
 
-                # Count each fragment
-                total_fragments += 1
+                    # Count each fragment
+                    total_fragments += 1
 
-                # Get metrics of the number of songs that are below the num_of_bars
-                if len(fragment) < num_of_bars:
-                    min += 1
+                    # Get metrics of the number of songs that are below the num_of_bars
+                    if len(fragment) < num_of_bars:
+                        min += 1
 
         # Return metrics, total number of created fragments, and number of fragments
         # smaller than the number of bars
