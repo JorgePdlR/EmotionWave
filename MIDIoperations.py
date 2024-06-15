@@ -28,6 +28,9 @@ class MidiWav:
             raise FileNotFoundError(f"No file found at specified path: {file_path}")
 
     def convert_to_wav(self, audio_path, sound_font='default.sf2'):
+
+        if not os.path.isfile(sound_font):
+            raise FileNotFoundError(f"Sound font not found: {sound_font}")
         # Load the MIDI file
         midi_data = pretty_midi.PrettyMIDI(self.midi_path)
 
@@ -101,20 +104,6 @@ class MidiWav:
         # Create a new stream to store the truncated parts
         truncated_score = music21.stream.Score()
 
-        ###
-        # Convert the new stream to a MIDI file and save it
-        # new_mf = music21.midi.translate.music21ObjectToMidiFile(score)
-
-        # Extract file name
-        # file_name = os.path.basename(self.midi_path)
-        # Save the new MIDI file
-        # truncated_midi_name = "newSong.mid"
-        # truncated_midi_path =  dir_path + truncated_midi_name
-        # new_mf.open(truncated_midi_path, 'wb')
-        # new_mf.write()
-        # new_mf.close()
-        ###
-
         # Calculate the start and end times in quarter lengths
         metronome_score = score.metronomeMarkBoundaries()
 
@@ -168,8 +157,7 @@ class MidiWav:
 
             # Get metronome mark for the corresponding time frame
             for metronome in metronome_part:
-                if start_quarter_length >= metronome[0] and \
-                        start_quarter_length <= metronome[1]:
+                if metronome[0] <= start_quarter_length <= metronome[1]:
                     nmetronome = metronome[2]
                     break
 
@@ -272,9 +260,9 @@ class MidiWav:
 
         if verbose == 2:
             print("New score printing\n")
-            print_stream_hierarchy(truncated_score, 0)
+            dump_stream_hierarchy(truncated_score, 0)
             print("Old score printing\n")
-            print_stream_hierarchy(score, 0)
+            dump_stream_hierarchy(score, 0)
 
         # Convert the new stream to a MIDI file and save it
         new_mf = music21.midi.translate.music21ObjectToMidiFile(truncated_score)
@@ -307,19 +295,134 @@ class REMItokenizer():
         tokens = self.tokenizer(Path(file_path))
         return tokens
 
-    def token_to_midi(self, file_path, tokens):
+    def split_per_bars(self, tokenized_song):
+        tracks = []
+        # Go through all the tracks in the song
+        for track in tokenized_song:
+            # Store a list of bars per instrument. The structure is:
+            # list[track1[bar1, bar2, ..., barN], track2[bar1, bar2, ..., barN]]
+            tracks.append(track.split_per_bars())
+
+        # Return None if the list is empty
+        if not tracks:
+            tracks = None
+
+        return tracks
+
+    def _split_with_n_tracks(self, song_in_bars, num_of_bars, num_of_track):
+        divided_song = []
+        # Get the total number of bars in the song
+        total_bars = len(song_in_bars[0])
+        # Counter of number of bars processed
+        current_bars = 0
+        # Get starting bar
+        start = current_bars
+        # Calculate ending bar for next iteration
+        end = current_bars + num_of_bars
+
+        # Divide the track in lists of bars multiple of num_of_bars
+        while start < total_bars:
+            song_fragment = []
+            for track_num in range(num_of_track):
+                track = song_in_bars[track_num]
+                song_fragment.append(track[start: end])
+
+            # Add total number of bars
+            current_bars += num_of_bars
+            # Get starting bar
+            start = current_bars
+            # Calculate ending bar for next iteration
+            end = current_bars + num_of_bars
+            # Add song_fragment to divided song list
+            divided_song.append(song_fragment)
+
+        return divided_song
+
+    def split_in_groups_of_bars(self, tokenized_song, num_of_bars=8, any_num_of_tracks=False):
+        # Split the song in tracks and bars
+        song_in_bars = self.split_per_bars(tokenized_song)
+        total_tracks = len(song_in_bars)
+        divided_song = []
+
+        # Assuming the song will be divided in two tracks, melody and harmony, or just 1 track. Return None if these
+        # assumptions are not True.
+        if (total_tracks > 2 or total_tracks == 0) and not any_num_of_tracks:
+            print(f"Number of tracks is more than 2!: {len(song_in_bars)}")
+            return None
+
+        # Ignore songs with more than 2 tracks if any_num_of_tracks is False
+        if not any_num_of_tracks:
+            # Divide according to the case
+            if total_tracks == 1:
+                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, 1)
+            elif total_tracks == 2:
+                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, 2)
+            else:
+                print(f"Number of tracks is more than 2 or 0!: {len(song_in_bars)}")
+                divided_song = None
+        else:
+            divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, total_tracks)
+
+        return total_tracks, divided_song
+
+    def tokens_to_midi(self, file_path, tokens):
         generated_midi = self.tokenizer(tokens)
         generated_midi.dump_midi(Path(file_path))
 
+    def divide_songs_in_fragments_from_dataset(self, paths, dir_path, num_of_bars=8, any_num_of_tracks=False):
+        min = 0  # Track number of fragments smaller than segment_size
+        total_fragments = 0  # Track the total number of fragments created
+
+        # If directory to store files does not exist, create it
+        os.makedirs(dir_path, exist_ok=True)
+
+        # Go through all the paths in the dataset and split each song in the corresponding bars and according to the
+        # number of tracks
+        for i, song in enumerate(paths):
+            current = MidiWav(song)
+
+            # Print progress every 100 songs
+            if i % 100 == 0:
+                print("Number of songs processed:", i, "total number of fragments so far:", total_fragments)
+                print(min, "Songs smaller than 30 seconds so far")
+
+            # Time to create the fragments
+            tokenized_song = self.tokenize_midi_file(current.midi_path)
+            _, divided_song = self.split_in_groups_of_bars(tokenized_song, num_of_bars=num_of_bars,
+                                                           any_num_of_tracks=any_num_of_tracks)
+
+            # Go through all fragments and store them
+            for fragment_id, fragment in divided_song:
+                # Create name for the fragment
+                # Extract file name
+                file_name = os.path.basename(current.midi_path)
+                # Save the new MIDI file
+                truncated_midi_name = f"{file_name[:-4]}_{fragment_id}.mid"
+                truncated_midi_path = dir_path + truncated_midi_name
+
+                # Convert tokens to midi and store it
+                self.tokens_to_midi(truncated_midi_path, fragment)
+
+                # Count each fragment
+                total_fragments += 1
+
+                # Get metrics of the number of songs that are below the num_of_bars
+                if len(fragment) < num_of_bars:
+                    min += 1
+
+        # Return metrics, total number of created fragments, and number of fragments
+        # smaller than the number of bars
+        return total_fragments, min
+
 
 #### Debugging functions ####
-def print_stream_hierarchy(stream, level=0):
+def dump_stream_hierarchy(stream, level=0):
     indent = "  " * level
     for element in stream:
         if isinstance(element, music21.stream.Stream):
             print(
                 f"{indent}{element.__class__.__name__} (offset: {element.offset}, duration: {element.duration.quarterLength})")
-            print_stream_hierarchy(element, level + 1)
+            dump_stream_hierarchy(element, level + 1)
         elif isinstance(element, music21.note.Note):
             tie_info = f", tie: {element.tie.type}" if element.tie else ""
             velocity_info = f", velocity: {element.volume.velocity}" if element.volume.velocity else ""
