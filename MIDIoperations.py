@@ -17,6 +17,7 @@ import IPython.display as ipd
 import pretty_midi
 from midi2audio import FluidSynth
 
+
 class MidiWav:
     def __init__(self, file_path):
         # File exists, store path
@@ -326,19 +327,23 @@ class REMItokenizer():
             for track_num in range(num_of_track):
                 track = song_in_bars[track_num]
                 bars = track[start: end]
-                bars_fragment = bars.pop(0)
-                # Concatenate each bar to create new fragment
-                for bar in bars:
-                    bars_fragment += bar
-                song_fragment.append(bars_fragment)
-            # Add total number of bars
-            current_bars += num_of_bars
-            # Get starting bar
-            start = current_bars
-            # Calculate ending bar for next iteration
-            end = current_bars + num_of_bars
-            # Add song_fragment to divided song list
-            divided_song.append(song_fragment)
+                # Add just not empty bars
+                if len(bars) > 0:
+                    bars_fragment = bars.pop(0)
+                    # Concatenate each bar to create new fragment
+                    for bar in bars:
+                        bars_fragment += bar
+                    song_fragment.append(bars_fragment)
+            # Add just not empty fragments
+            if len(song_fragment) > 0:
+                # Add total number of bars
+                current_bars += num_of_bars
+                # Get starting bar
+                start = current_bars
+                # Calculate ending bar for next iteration
+                end = current_bars + num_of_bars
+                # Add song_fragment to divided song list
+                divided_song.append(song_fragment)
 
         return divided_song
 
