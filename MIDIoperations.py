@@ -325,8 +325,12 @@ class REMItokenizer():
             song_fragment = []
             for track_num in range(num_of_track):
                 track = song_in_bars[track_num]
-                song_fragment.append(track[start: end])
-
+                bars = track[start: end]
+                bars_fragment = bars.pop(0)
+                # Concatenate each bar to create new fragment
+                for bar in bars:
+                    bars_fragment += bar
+                song_fragment.append(bars_fragment)
             # Add total number of bars
             current_bars += num_of_bars
             # Get starting bar
@@ -392,7 +396,7 @@ class REMItokenizer():
                                                            any_num_of_tracks=any_num_of_tracks)
 
             # Go through all fragments and store them
-            for fragment_id, fragment in divided_song:
+            for fragment_id, fragment in enumerate(divided_song):
                 # Create name for the fragment
                 # Extract file name
                 file_name = os.path.basename(current.midi_path)

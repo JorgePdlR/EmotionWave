@@ -27,8 +27,7 @@ def main():
     tokenized_song = remi.tokenize_midi_file(current.midi_path)
     _, divided_song = remi.split_in_groups_of_bars(tokenized_song, num_of_bars=8)
     for fragment in divided_song:
-        generated_midi = remi.tokens_to_midi(fragment)
-        generated_midi.dump_midi(Path("output_midi", "decoded_midi.mid"))
+        generated_midi = remi.tokens_to_midi("new_mid.mid", fragment)
         print(fragment)
 
 
