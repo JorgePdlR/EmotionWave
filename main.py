@@ -1,34 +1,32 @@
 import Model.EmotionWave as emw
+import torch
 from MIDIoperations import REMItokenizer, MidiWav
 
 
 def main():
-    #module = emw.EmotionWave(12, 512, 8, 2048,
-    #                128, 512, 10000, 12, 512,
-    #                8, 2048)
-    #print(module)
-    #print("DONE")
-    TOKENIZER_PARAMS = {
-        "pitch_range": (21, 109),
-        "beat_res": {(0, 4): 8, (4, 12): 4},
-        "num_velocities": 32,
-        "special_tokens": ["BOS", "EOS", "MASK"],
-        "use_chords": True,
-        "use_rests": False,
-        "use_tempos": True,
-        "use_time_signatures": False,
-        "use_programs": False,
-        "num_tempos": 32,  # number of tempo bins
-        "tempo_range": (40, 250),  # (min, max)
-    }
-    remi = REMItokenizer(TOKENIZER_PARAMS)
-    current = MidiWav(r"C:\Users\jored\Downloads\Animal Crossing_Nintendo 3DS_Animal Crossing New Leaf_100 AM_0.mid")
-    # current.convert_to_wav("personal_tests.wav", r"C:\Users\jored\GeneralUser_GS_1.471\GeneralUser GS 1.471\GeneralUser GS v1.471.sf2")
-    tokenized_song = remi.tokenize_midi_file(current.midi_path)
-    _, divided_song = remi.split_in_groups_of_bars(tokenized_song, num_of_bars=8)
-    for fragment in divided_song:
-        generated_midi = remi.tokens_to_midi("new_mid.mid", fragment)
-        print(fragment)
+    emw_model = emw.EmotionWave(12, 512, 8, 2048,
+                    128, 512, 10000, 12, 512,
+                    8, 2048)
+    #print(emw_model)
+
+    # Define the shapes
+    seqlen_per_bar = 50    # Sequence length per bar
+    bsize = 2              # Batch size
+    n_bars_per_sample = 8  # Number of bars per sample
+    seqlen_per_sample = seqlen_per_bar * n_bars_per_sample
+
+    # Create synthetic inputs with appropriate types
+    enc_inp = torch.randint(0, 100, (seqlen_per_bar, bsize, n_bars_per_sample), dtype=torch.long)
+    dec_inp = torch.randint(0, 100, (seqlen_per_sample, bsize), dtype=torch.long)
+    dec_inp_bar_pos = torch.randint(0, n_bars_per_sample + 1, (bsize, n_bars_per_sample + 1), dtype=torch.long)
+    dec_tgt = torch.randint(0, 10000, (seqlen_per_sample, bsize), dtype=torch.long)
+    valence_cls = torch.randint(0, 8, (seqlen_per_sample, bsize), dtype=torch.long)
+
+    mu, logvar, decoder_logits = emw_model(enc_inp, dec_inp, dec_inp_bar_pos, valence_cls=valence_cls, verbose=True)
+    print(decoder_logits.shape)
+    vloss = emw_model.compute_loss(mu, logvar, 1.0, 0.25, decoder_logits, dec_tgt)
+    print(vloss)
+    print("DONE")
 
 
 main()

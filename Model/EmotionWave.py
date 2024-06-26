@@ -11,7 +11,9 @@ class EmotionWave(nn.Module):
                  dim_vae_latent,  # VAE latent space
                  dim_embedding, num_embeddings,  # Embedding module
                  decoder_num_layers, decoder_dim_model, decoder_num_head, decoder_dim_feedforward,  # Decoder
-                 encoder_dropout=0.1, encoder_activation='relu', decoder_dropout=0.1, decoder_activation='relu'):
+                 valence_num_cls=8, valence_dim_embeddings=32,  # Valence conditioning
+                 encoder_dropout=0.1, encoder_activation='relu', decoder_dropout=0.1, decoder_activation='relu',
+                 valence_cls=True):
         super(EmotionWave, self).__init__()
         # Encoder
         self.encoder_num_layers = encoder_num_layers
@@ -32,12 +34,14 @@ class EmotionWave(nn.Module):
         # VAE
         self.dim_vae_latent = dim_vae_latent
 
+        # Valence conditioning
+        self.valence_dim_embeddings = valence_dim_embeddings
+        self.valence_num_cls = valence_num_cls
+        self.valence_cls = valence_cls
+
         # Embeddings
         self.dim_embedding = dim_embedding
         self.num_embedding = num_embeddings
-
-        # Helper dropout module
-        self.dropout = nn.Dropout(self.encoder_dropout)
 
         # Modules
         # Embedding
@@ -50,9 +54,22 @@ class EmotionWave(nn.Module):
                                              self.encoder_activation)
 
         # Decoder
-        self.decoder = VAETransformerDecoder(self.decoder_num_layers, self.decoder_dim_model, self.decoder_num_head,
-                                             self.decoder_dim_feedforward, self.dim_vae_latent, self.decoder_dropout,
-                                             self.decoder_activation)
+        # Use valence cls conditioning if provided
+        if self.valence_cls:
+            self.decoder = VAETransformerDecoder(self.decoder_num_layers, self.decoder_dim_model, self.decoder_num_head,
+                                                 self.decoder_dim_feedforward,
+                                                 self.dim_vae_latent + self.valence_dim_embeddings,
+                                                 self.decoder_dropout, self.decoder_activation)
+
+            self.valence_embedding = EmbeddingWithProjection(self.valence_num_cls, self.valence_dim_embeddings,
+                                                             self.valence_dim_embeddings)
+
+        else:
+            self.decoder = VAETransformerDecoder(self.decoder_num_layers, self.decoder_dim_model, self.decoder_num_head,
+                                                 self.decoder_dim_feedforward, self.dim_vae_latent,
+                                                 self.decoder_dropout, self.decoder_activation)
+
+            self.valence_embedding = None
 
         # Linear layer to match the decoder dimensions to the embeddings vocabulary
         self.decoder_out_projection = nn.Linear(self.decoder_dim_model, self.num_embedding)
@@ -81,8 +98,8 @@ class EmotionWave(nn.Module):
         # Input embedding
         input_embedding = self.input_embedding(x)
 
-        # Embedding dropout and positional encoding
-        input_encoding = self.dropout(input_embedding) + self.positional_encoder(x.size(0))
+        # Embedding positional encoding
+        input_encoding = self.positional_encoder(input_embedding)
 
         # Encode to get mu and log-variance
         _, mu, logvar = self.encoder(input_encoding, padding_mask=padding_mask)
@@ -94,15 +111,28 @@ class EmotionWave(nn.Module):
 
         return vae_latent
 
-    def generate(self, x, condition_embedding, keep_last_only=True):
+    def generate(self, x, condition_embedding, valence_cls=None, keep_last_only=True):
+
+        print("input", x.shape)
+
         # Input embedding
         input_embedding = self.input_embedding(x)
 
-        # Embedding dropout and positional encoding
-        input_decoder = self.dropout(input_embedding) + self.positional_encoder(x.size(0))
+        print("After embedding", input_embedding.shape)
 
-        # Concatenate or add to the conditional embedding if necessary
-        decoder_condition_embedding = condition_embedding
+        # Embedding positional encoding
+        input_decoder = self.positional_encoder(input_embedding)
+
+        print("After encoder", input_decoder.shape)
+
+        # Concatenate to the conditional embedding valence conditioning, if provided
+        if valence_cls is not None:
+            decoder_valence_embedding = self.valence_embedding(valence_cls)
+            decoder_condition_embedding = torch.cat([condition_embedding, decoder_valence_embedding], dim=-1)
+        else:
+            decoder_condition_embedding = condition_embedding
+
+        print("Extra, condition embedding", decoder_condition_embedding.shape)
 
         # Decode the input
         out = self.decoder(input_decoder, decoder_condition_embedding)
@@ -115,7 +145,7 @@ class EmotionWave(nn.Module):
 
         return out
 
-    def forward(self, encoder_x, decoder_x, decoder_x_bar_position, padding_mask=None, verbose=False):
+    def forward(self, encoder_x, decoder_x, decoder_x_bar_position, valence_cls=None,padding_mask=None, verbose=False):
         # Get shape information
         encoder_batch_size, encoder_num_bars = encoder_x.size(1), encoder_x.size(2)
         if verbose:
@@ -135,47 +165,74 @@ class EmotionWave(nn.Module):
             print("Encoder reshaped input embedding", encoder_input_embedding.shape)
 
         # Encoder positional encoding
-        encoder_input_encoding = self.dropout(encoder_input_embedding) + self.positional_encoder(encoder_x.size(0))
+        encoder_input_encoding = self.positional_encoder(encoder_input_embedding, batch=False)
+
+        if verbose:
+            print("Encoder input encoding", encoder_input_encoding.shape)
 
         ### Decoder input processing ###
         # Decoder input embedding
         decoder_input_embedding = self.input_embedding(decoder_x)
 
         if verbose:
-            print("Decoder input embedding", decoder_input_embedding)
+            print("Decoder input embedding", decoder_input_embedding.shape)
 
         # Decoder positional encoding
-        decoder_input_encoding = self.dropout(decoder_input_embedding) + self.positional_encoder(decoder_x.size(0))
+        decoder_input_encoding = self.positional_encoder(decoder_input_embedding, batch=False)
 
         ### Encoder processing ###
-        if verbose:
+        if verbose and padding_mask is not None:
             print("Padding mask dimensions", padding_mask.shape)
 
         # Add padding for those indices bigger than the sequence length per bar
         if padding_mask is not None:
             padding_mask = padding_mask.reshape(-1, padding_mask.size(-1))
 
-        if verbose:
+        if verbose and padding_mask is not None:
             print("Padding mask reshaped dimensions", padding_mask.shape)
 
         _, mu, logvar = self.encoder(encoder_input_encoding, padding_mask=padding_mask)
         vae_latent_space = self.reparameterise(mu, logvar)
+
+        if verbose:
+            print("VAE latent space", vae_latent_space.shape)
+
         vae_latent_space_reshaped = vae_latent_space.reshape(encoder_batch_size, encoder_num_bars, -1)
+
+        if verbose:
+            print("VAE latent space reshaped", vae_latent_space_reshaped.shape)
 
         ### Decoder processing ###
 
         decoder_segment_embeddings = torch.zeros(decoder_input_encoding.size(0), decoder_input_encoding.size(1),
                                                  self.dim_vae_latent).to(vae_latent_space.device)
 
+        if verbose:
+            print("Decoder segment embeddings", decoder_segment_embeddings.shape)
+
         for n in range(decoder_input_encoding.size(1)):
             for b, (st, ed) in enumerate(zip(decoder_x_bar_position[n, :-1], decoder_x_bar_position[n, 1:])):
                 decoder_segment_embeddings[st:ed, n, :] = vae_latent_space_reshaped[n, b, :]
 
-        # Use for further conditioning in generation
-        decoder_segment_embedding_cat = decoder_segment_embeddings
 
-        decoder_out = self.decoder(decoder_x, decoder_segment_embedding_cat)
-        decoder_logits = self.dec_out_proj(decoder_out)
+        # Use for further conditioning in generation
+        # Concatenate to the conditional embedding valence conditioning, if provided
+        if valence_cls is not None:
+            decoder_valence_embedding = self.valence_embedding(valence_cls)
+            decoder_segment_embedding_cat = torch.cat([decoder_segment_embeddings, decoder_valence_embedding], dim=-1)
+        else:
+            decoder_segment_embedding_cat = decoder_segment_embeddings
+
+        decoder_out = self.decoder(decoder_input_encoding, decoder_segment_embedding_cat)
+
+        if verbose:
+            print("Decoder output", decoder_out.shape)
+
+        # Project to predict which is the most probable token
+        decoder_logits = self.decoder_out_projection(decoder_out)
+
+        if verbose:
+            print("Decoder logits", decoder_logits.shape)
 
         return mu, logvar, decoder_logits
 

@@ -1,5 +1,6 @@
 # Using REMI scheme tokenisation
-from miditok import REMI, TokenizerConfig
+from miditok import REMI, TokenizerConfig, TokSequence
+
 # Manage paths
 from pathlib import Path
 import os
@@ -292,6 +293,9 @@ class REMItokenizer():
         self.configuration = TokenizerConfig(**parameters)
         self.tokenizer = REMI(self.configuration)
 
+    def get_vocab_dict(self):
+        return self.tokenizer.vocab
+
     def tokenize_midi_file(self, file_path):
         tokens = self.tokenizer(Path(file_path))
         return tokens
@@ -373,6 +377,21 @@ class REMItokenizer():
             divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, total_tracks)
 
         return total_tracks, divided_song
+
+    def ids_to_midi(self, file_path, ids_list):
+        tok_sequence_list = []
+        # In case more than one track is provided
+        for ids in ids_list:
+            # Create a TokSequence object
+            tok_sequence = TokSequence(ids=ids)
+
+            # Complete the tok sequence
+            self.tokenizer.complete_sequence(tok_sequence)
+            # Concatenate each track
+            tok_sequence_list.append(tok_sequence)
+
+        # Create MIDI file
+        self.tokens_to_midi(file_path, tok_sequence_list)
 
     def tokens_to_midi(self, file_path, tokens):
         generated_midi = self.tokenizer(tokens)

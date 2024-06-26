@@ -14,7 +14,6 @@ class VAETransformerEncoder(nn.Module):
         self.dim_model = dim_model                # Number of expected features in the input
         self.num_head = num_head                  # Number of heads for the multi-head-attention model
         self.dim_feedforward = dim_feedforward    # The dimension of the feedforward network model
-        self.dropout = dropout                    # Dropout value
         self.activation = activation              # Activation function of the intermediate layer
         self.dim_vae_latent = dim_vae_latent      # Dimension of latent vector
 
@@ -67,7 +66,7 @@ class VAETransformerDecoder(nn.Module):
             self.decoder_layers.append(nn.TransformerEncoderLayer(dim_model, num_head, dim_feedforward, dropout,
                                                                   activation))
 
-    def forward(self, x, condition_embedding, verbose):
+    def forward(self, x, condition_embedding, verbose=False):
         attn_mask = generate_causal_mask(x.size(0)).to(x.device)
         if verbose:
             print("Attention mask size: ", attn_mask.size())
@@ -79,7 +78,8 @@ class VAETransformerDecoder(nn.Module):
         for i in range(self.num_layers):
             # Add in-attention conditioning to the input, and subsequent outputs
             out += condition_embedding
-            # Get
+
+            # Get decoder layer output
             out = self.decoder_layers[i](out, src_mask=attn_mask)
 
         return out
@@ -88,28 +88,31 @@ class VAETransformerDecoder(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, dropout=0.1, max_pos=16384):
         super(PositionalEncoding, self).__init__()
-        self.dim_model = dim_model   # Model dimensions
-        self.dropout = dropout       # Dropout value
-        self.max_pos = max_pos       # Maximum position
+        self.dim_model = dim_model          # Model dimensions
+        self.dropout = nn.Dropout(dropout)  # Dropout module
+        self.max_pos = max_pos              # Maximum position
 
         # Calculate positional encodings
-        pe = torch.zeros(max_pos, dim_model)
+        pe = torch.zeros(max_pos, 1, dim_model)
         position = torch.arange(0, max_pos, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0) / dim_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
 
-    def forward(self, x):
+    def forward(self, x, batch=True):
         # Slicing the positional encodings up to the input sequence length
-        pos_encoding = self.pe[:, :x.size(1), :]
+        pos_encoding = self.pe[:x.size(0), :, :]
+
+        # Match dimensions to avoid funny broadcasting
+        if batch:
+            pos_encoding = pos_encoding.unsqueeze(2)
 
         # Adding positional encodings to the input tensor
-        x = x + pos_encoding
+        x = self.dropout(x) + pos_encoding
 
         # Apply dropout
-        return self.dropout(x)
+        return x
 
 
 class EmbeddingWithProjection(nn.Module):
