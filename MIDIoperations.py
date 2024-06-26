@@ -289,9 +289,9 @@ class MidiWav:
 
 
 class REMItokenizer():
-    def __init__(self, parameters):
+    def __init__(self, parameters, max_bar_embedding=16):
         self.configuration = TokenizerConfig(**parameters)
-        self.tokenizer = REMI(self.configuration)
+        self.tokenizer = REMI(self.configuration, max_bar_embedding=max_bar_embedding)
 
     def get_vocab_dict(self):
         return self.tokenizer.vocab
