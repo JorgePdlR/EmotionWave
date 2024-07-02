@@ -402,6 +402,10 @@ class REMItokenizer():
         id_to_token = self.get_inverted_vocab_dict()
         return id_to_token[id]
 
+    def token_to_id(self, token_t):
+        token_to_id = self.get_vocab_dict()
+        return token_to_id[token_t]
+
     def tokens_to_midi(self, file_path, tokens):
         generated_midi = self.tokenizer(tokens)
         generated_midi.dump_midi(Path(file_path))
