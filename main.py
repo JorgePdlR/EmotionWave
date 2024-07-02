@@ -10,10 +10,11 @@ def main():
     #print(emw_model)
 
     # Define the shapes
-    seqlen_per_bar = 50    # Sequence length per bar
-    bsize = 2              # Batch size
+    seqlen_per_bar = 128    # Sequence length per bar
+    bsize = 8              # Batch size
     n_bars_per_sample = 8  # Number of bars per sample
-    seqlen_per_sample = seqlen_per_bar * n_bars_per_sample
+    #seqlen_per_sample = seqlen_per_bar * n_bars_per_sample
+    seqlen_per_sample = 1024
 
     # Create synthetic inputs with appropriate types
     enc_inp = torch.randint(0, 100, (seqlen_per_bar, bsize, n_bars_per_sample), dtype=torch.long)
@@ -21,8 +22,10 @@ def main():
     dec_inp_bar_pos = torch.randint(0, n_bars_per_sample + 1, (bsize, n_bars_per_sample + 1), dtype=torch.long)
     dec_tgt = torch.randint(0, 10000, (seqlen_per_sample, bsize), dtype=torch.long)
     valence_cls = torch.randint(0, 8, (seqlen_per_sample, bsize), dtype=torch.long)
+    padding_mask = torch.randint(0, 1, (bsize, n_bars_per_sample, seqlen_per_bar), dtype=torch.bool)
 
-    mu, logvar, decoder_logits = emw_model(enc_inp, dec_inp, dec_inp_bar_pos, valence_cls=valence_cls, verbose=True)
+    mu, logvar, decoder_logits = emw_model(enc_inp, dec_inp, dec_inp_bar_pos, valence_cls=valence_cls,
+                                           padding_mask=padding_mask, verbose=True)
     print(decoder_logits.shape)
     vloss = emw_model.compute_loss(mu, logvar, 1.0, 0.25, decoder_logits, dec_tgt)
     print(vloss)

@@ -296,6 +296,11 @@ class REMItokenizer():
     def get_vocab_dict(self):
         return self.tokenizer.vocab
 
+    def get_inverted_vocab_dict(self):
+        vocab_dict = self.get_vocab_dict()
+        inverted_dict = {value: key for key, value in vocab_dict.items()}
+        return inverted_dict
+
     def tokenize_midi_file(self, file_path):
         tokens = self.tokenizer(Path(file_path))
         return tokens
@@ -392,6 +397,10 @@ class REMItokenizer():
 
         # Create MIDI file
         self.tokens_to_midi(file_path, tok_sequence_list)
+
+    def id_to_token(self, id):
+        id_to_token = self.get_inverted_vocab_dict()
+        return id_to_token[id]
 
     def tokens_to_midi(self, file_path, tokens):
         generated_midi = self.tokenizer(tokens)
