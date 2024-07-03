@@ -111,19 +111,22 @@ class EmotionWave(nn.Module):
 
         return vae_latent
 
-    def generate(self, x, condition_embedding, valence_cls=None, keep_last_only=True):
+    def generate(self, x, condition_embedding, valence_cls=None, keep_last_only=True, verbose=False):
 
-        print("input", x.shape)
+        if verbose:
+            print("input", x.shape)
 
         # Input embedding
         input_embedding = self.input_embedding(x)
 
-        print("After embedding", input_embedding.shape)
+        if verbose:
+            print("After embedding", input_embedding.shape)
 
         # Embedding positional encoding
         input_decoder = self.positional_encoder(input_embedding, batch=False)
 
-        print("After encoder", input_decoder.shape)
+        if verbose:
+            print("After encoder", input_decoder.shape)
 
         # Concatenate to the conditional embedding valence conditioning, if provided
         if valence_cls is not None:
@@ -132,7 +135,8 @@ class EmotionWave(nn.Module):
         else:
             decoder_condition_embedding = condition_embedding
 
-        print("Extra, condition embedding", decoder_condition_embedding.shape)
+        if verbose:
+            print("Extra, condition embedding", decoder_condition_embedding.shape)
 
         # Decode the input
         out = self.decoder(input_decoder, decoder_condition_embedding)
