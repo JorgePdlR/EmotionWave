@@ -99,7 +99,7 @@ class EmotionWave(nn.Module):
         input_embedding = self.input_embedding(x)
 
         # Embedding positional encoding
-        input_encoding = self.positional_encoder(input_embedding)
+        input_encoding = self.positional_encoder(input_embedding, batch=False)
 
         # Encode to get mu and log-variance
         _, mu, logvar = self.encoder(input_encoding, padding_mask=padding_mask)
@@ -121,7 +121,7 @@ class EmotionWave(nn.Module):
         print("After embedding", input_embedding.shape)
 
         # Embedding positional encoding
-        input_decoder = self.positional_encoder(input_embedding)
+        input_decoder = self.positional_encoder(input_embedding, batch=False)
 
         print("After encoder", input_decoder.shape)
 
