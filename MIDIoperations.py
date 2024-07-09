@@ -365,7 +365,7 @@ class REMItokenizer():
         # Assuming the song will be divided in number_of_tracks tracks, melody and harmony, or just 1 track. Return
         # None if these assumptions are not True.
         if (total_tracks > number_of_tracks or total_tracks == 0) and not any_num_of_tracks:
-            print(f"Number of tracks is more than 2!: {len(song_in_bars)}")
+            print(f"Number of tracks is more than {number_of_tracks}!: {len(song_in_bars)}")
             return None, None
 
         # Ignore songs with more than 2 tracks if any_num_of_tracks is False
@@ -429,7 +429,8 @@ class REMItokenizer():
             # Time to create the fragments
             tokenized_song = self.tokenize_midi_file(current.midi_path)
             _, divided_song = self.split_in_groups_of_bars(tokenized_song, num_of_bars=num_of_bars,
-                                                           any_num_of_tracks=any_num_of_tracks)
+                                                           any_num_of_tracks=any_num_of_tracks,
+                                                           number_of_tracks=number_of_tracks)
 
             # Advance just if we have a divided song
             if divided_song is not None:
