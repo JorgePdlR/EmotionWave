@@ -372,7 +372,7 @@ class REMItokenizer():
         if not any_num_of_tracks:
             # Divide according to the case
             if total_tracks <= number_of_tracks:
-                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, number_of_tracks)
+                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, number_of_tracks - 1)
             else:
                 print(f"Number of tracks is more than {number_of_tracks} or 0!: {len(song_in_bars)}")
                 divided_song = None
