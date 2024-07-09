@@ -356,27 +356,25 @@ class REMItokenizer():
 
         return divided_song
 
-    def split_in_groups_of_bars(self, tokenized_song, num_of_bars=8, any_num_of_tracks=False):
+    def split_in_groups_of_bars(self, tokenized_song, num_of_bars=8, any_num_of_tracks=False, number_of_tracks=2):
         # Split the song in tracks and bars
         song_in_bars = self.split_per_bars(tokenized_song)
         total_tracks = len(song_in_bars)
         divided_song = []
 
-        # Assuming the song will be divided in two tracks, melody and harmony, or just 1 track. Return None if these
-        # assumptions are not True.
-        if (total_tracks > 2 or total_tracks == 0) and not any_num_of_tracks:
+        # Assuming the song will be divided in number_of_tracks tracks, melody and harmony, or just 1 track. Return
+        # None if these assumptions are not True.
+        if (total_tracks > number_of_tracks or total_tracks == 0) and not any_num_of_tracks:
             print(f"Number of tracks is more than 2!: {len(song_in_bars)}")
             return None, None
 
         # Ignore songs with more than 2 tracks if any_num_of_tracks is False
         if not any_num_of_tracks:
             # Divide according to the case
-            if total_tracks == 1:
-                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, 1)
-            elif total_tracks == 2:
-                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, 2)
+            if total_tracks <= number_of_tracks:
+                divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, number_of_tracks)
             else:
-                print(f"Number of tracks is more than 2 or 0!: {len(song_in_bars)}")
+                print(f"Number of tracks is more than {number_of_tracks} or 0!: {len(song_in_bars)}")
                 divided_song = None
         else:
             divided_song = self._split_with_n_tracks(song_in_bars, num_of_bars, total_tracks)
@@ -410,7 +408,8 @@ class REMItokenizer():
         generated_midi = self.tokenizer(tokens)
         generated_midi.dump_midi(Path(file_path))
 
-    def divide_songs_in_fragments_from_dataset(self, paths, dir_path, num_of_bars=8, any_num_of_tracks=False):
+    def divide_songs_in_fragments_from_dataset(self, paths, dir_path, num_of_bars=8, any_num_of_tracks=False,
+                                               number_of_tracks=2):
         min = 0  # Track number of fragments smaller than segment_size
         total_fragments = 0  # Track the total number of fragments created
 
