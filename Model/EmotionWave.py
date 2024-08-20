@@ -184,6 +184,9 @@ class EmotionWave(nn.Module):
         # Decoder positional encoding
         decoder_input_encoding = self.positional_encoder(decoder_input_embedding, batch=False)
 
+        if verbose:
+            print("Decoder input encoding", decoder_input_encoding.shape)
+
         ### Encoder processing ###
         if verbose and padding_mask is not None:
             print("Padding mask dimensions", padding_mask.shape)
@@ -214,16 +217,23 @@ class EmotionWave(nn.Module):
         if verbose:
             print("Decoder segment embeddings", decoder_segment_embeddings.shape)
 
+        # Go through all the batches, represented by 'n', 'b' is used for bar
         for n in range(decoder_input_encoding.size(1)):
+            # Go through each bar getting the start and end position
             for b, (st, ed) in enumerate(zip(decoder_x_bar_position[n, :-1], decoder_x_bar_position[n, 1:])):
                 decoder_segment_embeddings[st:ed, n, :] = vae_latent_space_reshaped[n, b, :]
-
 
         # Use for further conditioning in generation
         # Concatenate to the conditional embedding valence conditioning, if provided
         if valence_cls is not None:
+            if verbose:
+                print("valence CLS", valence_cls.shape)
             decoder_valence_embedding = self.valence_embedding(valence_cls)
+            if verbose:
+                print("decoder valence embedding", decoder_valence_embedding.shape)
             decoder_segment_embedding_cat = torch.cat([decoder_segment_embeddings, decoder_valence_embedding], dim=-1)
+            if verbose:
+                print("decoder segment embedding cat", decoder_segment_embedding_cat.shape)
         else:
             decoder_segment_embedding_cat = decoder_segment_embeddings
 
@@ -243,6 +253,7 @@ class EmotionWave(nn.Module):
     def compute_loss(self, mu, logvar, beta, fb_lambda, dec_logits, dec_tgt):
         recons_loss = F.cross_entropy(dec_logits.view(-1, dec_logits.size(-1)), dec_tgt.contiguous().view(-1),
                                       ignore_index=self.num_embedding - 1, reduction='mean').float()
+
 
         kl_raw = -0.5 * (1 + logvar - mu ** 2 - logvar.exp()).mean(dim=0)
         kl_before_free_bits = kl_raw.mean()

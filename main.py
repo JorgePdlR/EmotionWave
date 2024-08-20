@@ -5,13 +5,13 @@ from MIDIoperations import REMItokenizer, MidiWav
 
 def main():
     emw_model = emw.EmotionWave(12, 512, 8, 2048,
-                    128, 512, 10000, 12, 512,
+                    128, 512, 327, 12, 512,
                     8, 2048)
     #print(emw_model)
 
     # Define the shapes
-    seqlen_per_bar = 128    # Sequence length per bar
-    bsize = 8              # Batch size
+    seqlen_per_bar = 64    # Sequence length per bar
+    bsize = 2              # Batch size
     n_bars_per_sample = 8  # Number of bars per sample
     #seqlen_per_sample = seqlen_per_bar * n_bars_per_sample
     seqlen_per_sample = 1024
@@ -20,7 +20,7 @@ def main():
     enc_inp = torch.randint(0, 100, (seqlen_per_bar, bsize, n_bars_per_sample), dtype=torch.long)
     dec_inp = torch.randint(0, 100, (seqlen_per_sample, bsize), dtype=torch.long)
     dec_inp_bar_pos = torch.randint(0, n_bars_per_sample + 1, (bsize, n_bars_per_sample + 1), dtype=torch.long)
-    dec_tgt = torch.randint(0, 10000, (seqlen_per_sample, bsize), dtype=torch.long)
+    dec_tgt = torch.randint(0, 327, (seqlen_per_sample, bsize), dtype=torch.long)
     valence_cls = torch.randint(0, 8, (seqlen_per_sample, bsize), dtype=torch.long)
     padding_mask = torch.randint(0, 1, (bsize, n_bars_per_sample, seqlen_per_bar), dtype=torch.bool)
 
